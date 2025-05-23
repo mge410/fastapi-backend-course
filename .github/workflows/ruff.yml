@@ -1,0 +1,22 @@
+name: CI Ruff Format Check
+on: [push, pull_request]
+
+jobs:
+  ruff-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff linter
+        run: ruff check --output-format=github .
+
+      - name: Check formatting with Ruff
+        run: ruff format --check .
