@@ -1,0 +1,2 @@
+class StorageResponseException(Exception):
+    pass
