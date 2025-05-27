@@ -1,17 +1,30 @@
 import json
+import os
 from typing import List
 
-from task_not_found_exception import TaskNotFound
+import requests
+from dotenv import load_dotenv
+
+from exceptions.storage_response_exception import (
+    StorageResponseException,
+)
+from exceptions.task_not_found_exception import TaskNotFound
 from tasks import TaskData, TaskCreateData
+
+load_dotenv()
 
 
 class TaskManager:
-    STORAGE_PATH = "storage.json"
-
     @classmethod
     def get_all_tasks(cls) -> List[TaskData]:
-        with open(cls.STORAGE_PATH, "r") as file:
-            data = json.load(file)
+        url = cls.__get_storage_url()
+        response = requests.get(
+            url, json=None, headers=cls.__get_storage_request_headers()
+        )
+        cls.__check_response_status(response.status_code)
+
+        data = json.loads(response.text)["record"]["tasks"]
+
         return [
             TaskData(id=task["id"], title=task["title"], status=task["status"])
             for task in data
@@ -19,66 +32,63 @@ class TaskManager:
 
     @classmethod
     def create_task(cls, new_task_data: TaskCreateData) -> TaskData:
-        with open(cls.STORAGE_PATH, "r+") as file:
-            data = json.load(file)
-            tasks = [
-                TaskData(id=task["id"], title=task["title"], status=task["status"])
-                for task in data
-            ]
+        tasks = cls.get_all_tasks()
 
-            task_id = cls.__get_new_task_id(tasks)
-            new_task = TaskData(
-                id=task_id, title=new_task_data.title, status=new_task_data.status
-            )
+        task_id = cls.__get_new_task_id(tasks)
+        new_task = TaskData(
+            id=task_id, title=new_task_data.title, status=new_task_data.status
+        )
 
-            data.append(new_task.model_dump())
-
-            file.seek(0)
-            json.dump(data, file, indent=2)
-            file.truncate()
+        tasks.append(new_task)
+        url = cls.__get_storage_url()
+        response = requests.put(
+            url,
+            json=cls.__format_request_body(tasks),
+            headers=cls.__get_storage_request_headers(),
+        )
+        cls.__check_response_status(response.status_code)
 
         return new_task
 
     @classmethod
     def update_task(cls, task_id: int, new_task_data: TaskCreateData) -> TaskData:
-        task_index = cls.__find_task_index_by_id(task_id)
+        tasks = TaskManager.get_all_tasks()
+        task_index = cls.__find_task_index_by_id(task_id, tasks)
 
-        with open(cls.STORAGE_PATH, "r+") as file:
-            data = json.load(file)
-            tasks = [
-                TaskData(id=task["id"], title=task["title"], status=task["status"])
-                for task in data
-            ]
+        tasks[task_index].title = new_task_data.title
+        tasks[task_index].status = new_task_data.status
 
-            tasks[task_index].title = new_task_data.title
-            tasks[task_index].status = new_task_data.status
-
-            file.seek(0)
-            json.dump([task.model_dump() for task in tasks], file, indent=2)
-            file.truncate()
+        url = cls.__get_storage_url()
+        response = requests.put(
+            url,
+            json=cls.__format_request_body(tasks),
+            headers=cls.__get_storage_request_headers(),
+        )
+        cls.__check_response_status(response.status_code)
 
         return tasks[task_index]
 
     @classmethod
     def delete_task(cls, task_id: int) -> None:
-        task_index = cls.__find_task_index_by_id(task_id)
+        tasks = cls.get_all_tasks()
+        task_index = cls.__find_task_index_by_id(task_id, tasks)
 
-        with open(cls.STORAGE_PATH, "r+") as file:
-            data = json.load(file)
-            tasks = [
-                TaskData(id=task["id"], title=task["title"], status=task["status"])
-                for task in data
-            ]
+        tasks.pop(task_index)
 
-            tasks.pop(task_index)
-
-            file.seek(0)
-            json.dump([task.model_dump() for task in tasks], file, indent=2)
-            file.truncate()
+        url = cls.__get_storage_url()
+        response = requests.put(
+            url,
+            json=cls.__format_request_body(tasks),
+            headers=cls.__get_storage_request_headers(),
+        )
+        cls.__check_response_status(response.status_code)
 
     @classmethod
-    def __find_task_index_by_id(cls, task_id: int) -> int:
-        tasks = TaskManager.get_all_tasks()
+    def __format_request_body(cls, tasks) -> dict:
+        return {"tasks": [task.model_dump() for task in tasks] if tasks else []}
+
+    @classmethod
+    def __find_task_index_by_id(cls, task_id: int, tasks: List[TaskData]) -> int:
         try:
             return [t.id for t in tasks].index(task_id)
         except ValueError:
@@ -89,3 +99,19 @@ class TaskManager:
         if len(tasks) > 0:
             return tasks[-1].id + 1
         return 1
+
+    @classmethod
+    def __get_storage_url(cls) -> str:
+        return f"https://api.jsonbin.io/v3/b/{os.getenv('JSON_BIN_ID')}"
+
+    @classmethod
+    def __get_storage_request_headers(cls) -> dict:
+        return {
+            "Content-Type": "application/json",
+            "X-Master-Key": os.getenv("JSON_BIN_IO_KEY"),
+        }
+
+    @classmethod
+    def __check_response_status(cls, status: int):
+        if status != 200:
+            raise StorageResponseException
