@@ -56,7 +56,7 @@ class TaskManager:
         task_index = self.__find_task_index_by_id(task_id, tasks)
 
         tasks[task_index].title = new_task_data.title
-        tasks[task_index].ai_text = new_task_data.text
+        tasks[task_index].description = new_task_data.description
         tasks[task_index].status = new_task_data.status
 
         self.storage_client.send_request(
