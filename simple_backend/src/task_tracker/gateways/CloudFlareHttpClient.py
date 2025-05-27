@@ -5,8 +5,10 @@ from requests import Response
 
 from gateways.BaseHttpClient import BaseHttpClient
 
+
 class CloudFlareMethods(Enum):
     POST = "POST"
+
 
 class CloudFlareHttpClient(BaseHttpClient):
     @property
@@ -22,9 +24,18 @@ class CloudFlareHttpClient(BaseHttpClient):
 
     @classmethod
     def format_request_body(cls, prompt: str) -> dict:
-        return {"prompt": prompt}
+        return {
+            "prompt": f"You need to use the task description "
+            f"to generate a plan for solving it. Just "
+            f"generate a plan based on the request you have. "
+            f"Do not request additional information or reply to the user. "
+            f"Just send the plan back in text. Here is the task description:"
+            f"{prompt}",
+        }
 
-    def send_request(self, method: str = CloudFlareMethods.POST, body: dict = None) -> Response:
+    def send_request(
+        self, method: str = CloudFlareMethods.POST, body: dict = None
+    ) -> Response:
         if method == CloudFlareMethods.POST.value:
             response = requests.post(self.url, json=body, headers=self.headers)
         else:

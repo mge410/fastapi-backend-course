@@ -11,6 +11,7 @@ class StorageHttpMethods(Enum):
     GET = "GET"
     PUT = "PUT"
 
+
 class StorageHttpClient(BaseHttpClient):
     @property
     def url(self) -> str:

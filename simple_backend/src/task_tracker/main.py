@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from exceptions.gateway_response_exception import GatewayResponseException
 from task_manager import TaskManager
 from exceptions.task_not_found_exception import TaskNotFound
-from task_model import TaskCreateData, TaskData
+from task_model import TaskCreateData, TaskData, TaskUpdateData
 
 app = FastAPI()
 load_dotenv()
@@ -33,7 +33,7 @@ def create_task(task: TaskCreateData) -> TaskData:
 
 
 @app.put("/tasks/{task_id}")
-def update_task(task_id: int, new_task_data: TaskCreateData) -> TaskData:
+def update_task(task_id: int, new_task_data: TaskUpdateData) -> TaskData:
     try:
         updated_task = task_manager.update_task(task_id, new_task_data)
     except TaskNotFound:

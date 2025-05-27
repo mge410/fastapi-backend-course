@@ -2,9 +2,9 @@ import json
 from typing import List
 
 from exceptions.task_not_found_exception import TaskNotFound
-from gateways.CloudFlareHttpClient import CloudFlareHttpClient
+from gateways.CloudFlareHttpClient import CloudFlareHttpClient, CloudFlareMethods
 from gateways.StorageHttpClient import StorageHttpClient, StorageHttpMethods
-from task_model import TaskData, TaskCreateData
+from task_model import TaskData, TaskCreateData, TaskUpdateData
 
 
 class TaskManager:
@@ -17,30 +17,51 @@ class TaskManager:
         data = json.loads(response.text)["record"]["tasks"]
 
         return [
-            TaskData(id=task["id"], title=task["title"], status=task["status"])
+            TaskData(
+                id=task["id"],
+                title=task["title"],
+                description=task.get("description", ""),
+                advice_by_ai=task.get("advice_by_ai", ""),
+                status=task["status"],
+            )
             for task in data
         ]
 
     def create_task(self, new_task_data: TaskCreateData) -> TaskData:
         tasks = self.get_all_tasks()
         task_id = self.__get_new_task_id(tasks)
+
+        advice_by_ai = self.ai_client.send_request(
+            CloudFlareMethods.POST.value,
+            self.ai_client.format_request_body(new_task_data.description),
+        ).json()["result"]["response"]
+
         new_task = TaskData(
-            id=task_id, title=new_task_data.title, status=new_task_data.status
+            id=task_id,
+            title=new_task_data.title,
+            description=new_task_data.description,
+            advice_by_ai=advice_by_ai,
+            status=new_task_data.status,
         )
 
         tasks.append(new_task)
-        self.storage_client.send_request(StorageHttpMethods.PUT.value, self.storage_client.format_request_body(tasks))
+        self.storage_client.send_request(
+            StorageHttpMethods.PUT.value, self.storage_client.format_request_body(tasks)
+        )
 
         return new_task
 
-    def update_task(self, task_id: int, new_task_data: TaskCreateData) -> TaskData:
+    def update_task(self, task_id: int, new_task_data: TaskUpdateData) -> TaskData:
         tasks = self.get_all_tasks()
         task_index = self.__find_task_index_by_id(task_id, tasks)
 
         tasks[task_index].title = new_task_data.title
+        tasks[task_index].ai_text = new_task_data.text
         tasks[task_index].status = new_task_data.status
 
-        self.storage_client.send_request(StorageHttpMethods.PUT.value, self.storage_client.format_request_body(tasks))
+        self.storage_client.send_request(
+            StorageHttpMethods.PUT.value, self.storage_client.format_request_body(tasks)
+        )
 
         return tasks[task_index]
 
@@ -49,7 +70,9 @@ class TaskManager:
         task_index = self.__find_task_index_by_id(task_id, tasks)
 
         tasks.pop(task_index)
-        self.storage_client.send_request(StorageHttpMethods.PUT.value, self.storage_client.format_request_body(tasks))
+        self.storage_client.send_request(
+            StorageHttpMethods.PUT.value, self.storage_client.format_request_body(tasks)
+        )
 
     @classmethod
     def __find_task_index_by_id(cls, task_id: int, tasks: List[TaskData]) -> int:
