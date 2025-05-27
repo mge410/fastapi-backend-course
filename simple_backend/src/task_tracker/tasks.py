@@ -10,7 +10,7 @@ class TaskStatus(str, Enum):
     FAILED = "failed"
 
 
-class TaskCreate(BaseModel):
+class TaskCreateData(BaseModel):
     title: str
     status: TaskStatus = TaskStatus.NEW
 
